@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Configuração de S3 e CloudFront para arquivos estáticos do UNIVESP Polos"
+
+Parameters:
+  Environment:
+    Description: Ambiente (prod, staging)
+    Type: String
+    Default: prod
+    AllowedValues: [prod, staging]
+
+  ProjectName:
+    Description: Nome do projeto
+    Type: String
+    Default: univesp-polos
+
+  DomainName:
+    Description: Nome do domínio
+    Type: String
+    Default: univesp-polos.com.br
+
+  CertificateArn:
+    Description: ARN do certificado SSL para CloudFront
+    Type: String
+
+Resources:
+  # S3 Bucket para arquivos estáticos
+  StaticBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-${Environment}-static
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET]
+            AllowedOrigins:
+              - !Sub https://${DomainName}
+              - !Sub https://*.${DomainName}
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: CleanupOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-static-bucket
+
+  # Política do bucket permitindo acesso apenas via CloudFront
+  StaticBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${StaticBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${StaticCDN}
+
+  # CloudFront Distribution
+  StaticCDN:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !If [
+              IsProd,
+              !Sub "static.${DomainName}",
+              !Sub "static.${Environment}.${DomainName}",
+            ]
+        Origins:
+          - DomainName: !GetAtt StaticBucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub origin-access-identity/cloudfront/${CloudFrontOAI}
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          DefaultTTL: 86400
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          MaxTTL: 31536000
+          MinTTL: 0
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+            ErrorCachingMinTTL: 300
+        Logging:
+          Bucket: !Sub ${LoggingBucket.DomainName}
+          Prefix: !Sub cloudfront/${Environment}/static/
+        Tags:
+          - Key: Name
+            Value: !Sub ${ProjectName}-${Environment}-static-cdn
+
+  # Origin Access Identity para CloudFront
+  CloudFrontOAI:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub Access Identity for ${ProjectName} ${Environment} static files
+
+  # Bucket para logs
+  LoggingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-${Environment}-logs
+      AccessControl: LogDeliveryWrite
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-logs-bucket
+
+  # Route 53 Record para CDN
+  StaticCDNRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub ${DomainName}.
+      Name: !If
+        - IsProd
+        - !Sub static.${DomainName}.
+        - !Sub static.${Environment}.${DomainName}.
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt StaticCDN.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2 # ID fixo para CloudFront
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+Outputs:
+  StaticBucketName:
+    Description: Nome do bucket S3 para arquivos estáticos
+    Value: !Ref StaticBucket
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-static-bucket
+
+  CloudFrontDomain:
+    Description: Domínio do CloudFront
+    Value: !GetAtt StaticCDN.DomainName
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-cdn-domain
+
+  StaticCDNURL:
+    Description: URL do CDN para arquivos estáticos
+    Value: !If
+      - IsProd
+      - !Sub https://static.${DomainName}
+      - !Sub https://static.${Environment}.${DomainName}
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-static-url

@@ -1,0 +1,159 @@
+{% load static %}
+
+<div
+  id="feedback-widget"
+  class="feedback-widget"
+  aria-label="Widget de feedback"
+>
+  <button
+    class="feedback-button"
+    onclick="toggleFeedbackForm()"
+    aria-expanded="false"
+  >
+    <i class="fas fa-comment-alt"></i>
+    <span>Feedback</span>
+  </button>
+
+  <div class="feedback-form-container" hidden>
+    <form id="feedback-form" class="feedback-form">
+      {% csrf_token %}
+      <h3>Seu Feedback</h3>
+
+      <div class="form-group">
+        <label for="feedback-type">Tipo de Feedback</label>
+        <select id="feedback-type" name="type" class="form-control" required>
+          <option value="">Selecione...</option>
+          <option value="BUG">Problema/Bug</option>
+          <option value="SUG">Sugestão</option>
+          <option value="ACC">Acessibilidade</option>
+          <option value="UX">Experiência de Uso</option>
+          <option value="OTH">Outro</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="feedback-description">Descrição</label>
+        <textarea
+          id="feedback-description"
+          name="description"
+          class="form-control"
+          rows="4"
+          required
+          placeholder="Descreva sua experiência ou sugestão..."
+        ></textarea>
+      </div>
+
+      <div class="form-buttons">
+        <button type="submit" class="btn btn-primary">Enviar</button>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="toggleFeedbackForm()"
+        >
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .feedback-widget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+  }
+
+  .feedback-button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease;
+  }
+
+  .feedback-button:hover {
+    transform: scale(1.1);
+  }
+
+  .feedback-form-container {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    width: 300px;
+  }
+
+  .feedback-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .form-group {
+    margin-bottom: 15px;
+  }
+
+  .form-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+</style>
+
+<script>
+  function toggleFeedbackForm() {
+    const container = document.querySelector(".feedback-form-container");
+    const button = document.querySelector(".feedback-button");
+    const isHidden = container.hidden;
+
+    container.hidden = !isHidden;
+    button.setAttribute("aria-expanded", !isHidden);
+  }
+
+  document
+    .getElementById("feedback-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const form = e.target;
+      const data = {
+        type: form.type.value,
+        description: form.description.value,
+        page_url: window.location.pathname,
+      };
+
+      try {
+        const response = await fetch("/feedback/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": form.querySelector("[name=csrfmiddlewaretoken]")
+              .value,
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          FeedbackManager.show("Obrigado pelo seu feedback!", "success");
+          toggleFeedbackForm();
+          form.reset();
+        } else {
+          throw new Error("Erro ao enviar feedback");
+        }
+      } catch (error) {
+        FeedbackManager.show(
+          "Erro ao enviar feedback. Tente novamente.",
+          "danger"
+        );
+      }
+    });
+</script>

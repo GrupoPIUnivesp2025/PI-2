@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Monitoramento, Backup e Alertas para UNIVESP Polos"
+
+Parameters:
+  Environment:
+    Description: Ambiente (prod, staging)
+    Type: String
+    Default: prod
+    AllowedValues: [prod, staging]
+
+  ProjectName:
+    Description: Nome do projeto
+    Type: String
+    Default: univesp-polos
+
+  AlertEmail:
+    Description: Email para receber alertas
+    Type: String
+
+Resources:
+  # SNS Topic para alertas
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${ProjectName}-${Environment}-alerts
+      DisplayName: !Sub ${ProjectName} ${Environment} Alerts
+
+  AlertTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # AWS Backup
+  BackupVault:
+    Type: AWS::Backup::BackupVault
+    Properties:
+      BackupVaultName: !Sub ${ProjectName}-${Environment}-vault
+      EncryptionKeyArn: !GetAtt BackupKey.Arn
+      Notifications:
+        BackupVaultEvents:
+          - BACKUP_JOB_STARTED
+          - BACKUP_JOB_COMPLETED
+          - BACKUP_JOB_FAILED
+          - RESTORE_JOB_COMPLETED
+          - RESTORE_JOB_FAILED
+        SNSTopicArn: !Ref AlertTopic
+
+  BackupKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for backup encryption
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: "*"
+          - Sid: Allow Backup Service
+            Effect: Allow
+            Principal:
+              Service: backup.amazonaws.com
+            Action:
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Resource: "*"
+
+  BackupPlan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: !Sub ${ProjectName}-${Environment}-backup-plan
+        BackupPlanRule:
+          - RuleName: DailyBackups
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: cron(0 1 * * ? *) # 1 AM UTC todos os dias
+            StartWindowMinutes: 60
+            CompletionWindowMinutes: 120
+            Lifecycle:
+              DeleteAfterDays: !If [IsProd, 90, 30]
+          - RuleName: WeeklyBackups
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: cron(0 2 ? * SUN *) # 2 AM UTC todo domingo
+            StartWindowMinutes: 120
+            CompletionWindowMinutes: 180
+            Lifecycle:
+              DeleteAfterDays: !If [IsProd, 365, 90]
+
+  # CloudWatch Alarms
+  DatabaseCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${ProjectName}-${Environment}-db-cpu
+      AlarmDescription: Alta utilização de CPU no banco de dados
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Dimensions:
+        - Name: DBClusterIdentifier
+          Value: !Sub ${ProjectName}-${Environment}-aurora-cluster
+
+  DatabaseConnectionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${ProjectName}-${Environment}-db-connections
+      AlarmDescription: Número alto de conexões com o banco de dados
+      MetricName: DatabaseConnections
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Dimensions:
+        - Name: DBClusterIdentifier
+          Value: !Sub ${ProjectName}-${Environment}-aurora-cluster
+
+  ApplicationErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${ProjectName}-${Environment}-app-errors
+      AlarmDescription: Alto número de erros na aplicação
+      MetricName: HTTPCode_ELB_5XX_Count
+      Namespace: AWS/ApplicationELB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref AlertTopic
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Sub ${ProjectName}-${Environment}-alb
+
+  # Dashboard
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${ProjectName}-${Environment}-dashboard
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/RDS", "CPUUtilization", "DBClusterIdentifier", "${ProjectName}-${Environment}-aurora-cluster"]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "CPU do Banco de Dados"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/RDS", "DatabaseConnections", "DBClusterIdentifier", "${ProjectName}-${Environment}-aurora-cluster"]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Conexões ao Banco de Dados"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", "${ProjectName}-${Environment}-alb"]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Erros da Aplicação"
+              }
+            }
+          ]
+        }
+
+  # Log Group Retention
+  ApplicationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ProjectName}-${Environment}
+      RetentionInDays: !If [IsProd, 90, 30]
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+Outputs:
+  BackupVaultName:
+    Description: Nome do vault de backup
+    Value: !Ref BackupVault
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-backup-vault
+
+  MonitoringDashboardURL:
+    Description: URL do dashboard de monitoramento
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-${Environment}-dashboard
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-dashboard-url
+
+  AlertTopicArn:
+    Description: ARN do tópico de alertas
+    Value: !Ref AlertTopic
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-alert-topic

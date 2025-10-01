@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}
+Acessibilidade - UNIVESP Polos
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <h1>Acessibilidade</h1>
+
+    <section class="mb-4" aria-labelledby="compromisso">
+      <h2 id="compromisso">Nosso Compromisso</h2>
+      <p>
+        A UNIVESP está comprometida em tornar seu site de polos acessível a
+        todos os usuários, independentemente de suas capacidades ou tecnologias
+        assistivas utilizadas.
+      </p>
+    </section>
+
+    <section class="mb-4" aria-labelledby="recursos">
+      <h2 id="recursos">Recursos de Acessibilidade</h2>
+
+      <h3>Navegação por Teclado</h3>
+      <ul>
+        <li>Tab: Navega entre elementos interativos</li>
+        <li>Enter/Space: Ativa o elemento selecionado</li>
+        <li>Alt + 1: Ir para página inicial</li>
+        <li>Alt + 2: Ir para busca de polos</li>
+        <li>Alt + 3: Ir para lista de polos</li>
+        <li>Alt + 0: Ir para página de acessibilidade</li>
+      </ul>
+
+      <h3>Alto Contraste</h3>
+      <p>
+        Você pode ativar o modo de alto contraste clicando no botão "Alto
+        Contraste" no rodapé da página ou usando o atalho Alt + C.
+      </p>
+
+      <h3>Redimensionamento de Texto</h3>
+      <p>Para aumentar ou diminuir o tamanho do texto:</p>
+      <ul>
+        <li>Pressione Ctrl + (+) para aumentar</li>
+        <li>Pressione Ctrl + (-) para diminuir</li>
+        <li>Pressione Ctrl + 0 para restaurar o tamanho padrão</li>
+      </ul>
+    </section>
+
+    <section class="mb-4" aria-labelledby="assistivas">
+      <h2 id="assistivas">Tecnologias Assistivas</h2>
+      <p>
+        Nosso site é compatível com os principais leitores de tela, incluindo:
+      </p>
+      <ul>
+        <li>NVDA</li>
+        <li>JAWS</li>
+        <li>VoiceOver</li>
+        <li>TalkBack</li>
+      </ul>
+    </section>
+
+    <section class="mb-4" aria-labelledby="mapa-acessivel">
+      <h2 id="mapa-acessivel">Mapa Acessível</h2>
+      <p>Para usuários que não podem utilizar o mapa visual, oferecemos:</p>
+      <ul>
+        <li>Lista textual de polos com distâncias</li>
+        <li>Descrições detalhadas de localização</li>
+        <li>Navegação por teclado no mapa</li>
+      </ul>
+    </section>
+
+    <section class="mb-4" aria-labelledby="contato">
+      <h2 id="contato">Feedback e Suporte</h2>
+      <p>
+        Se você encontrar alguma dificuldade de acesso ou tiver sugestões para
+        melhorar nossa acessibilidade, entre em contato conosco:
+      </p>
+      <ul>
+        <li>Email: acessibilidade@univesp.br</li>
+        <li>Telefone: (11) XXXX-XXXX</li>
+      </ul>
+    </section>
+  </div>
+</div>
+{% endblock %}

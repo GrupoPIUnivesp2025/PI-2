@@ -1,0 +1,437 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Sistema de localização de polos da UNIVESP - Universidade Virtual do Estado de São Paulo"
+    />
+    <meta name="theme-color" content="#0d6efd" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+    <title>{% block title %}UNIVESP Polos{% endblock %}</title>
+
+    <!-- Favicon e ícones -->
+    <!-- <link
+      rel="icon"
+      href="{% static 'images/favicon.ico' %}"
+      type="image/x-icon"
+    /> -->
+    <!-- <link
+      rel="apple-touch-icon"
+      href="{% static 'images/apple-touch-icon.png' %}"
+    /> -->
+
+    <!-- CSS Principal -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/accessibility.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/design_system.css' %}" />
+
+    <!-- Preload de fontes críticas -->
+    <link
+      rel="preload"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      as="style"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    />
+
+    {% block extra_css %}{% endblock %}
+
+    <!-- PWA manifest -->
+    <!-- <link rel="manifest" href="{% static 'manifest.json' %}" /> -->
+
+    <!-- Metadados de acessibilidade -->
+    <meta
+      name="description"
+      content="Sistema de localização de polos da UNIVESP com recursos de acessibilidade"
+    />
+    <meta
+      name="keywords"
+      content="UNIVESP, polos, educação, acessibilidade, localização"
+    />
+    <meta name="theme-color" content="#0d6efd" />
+
+    <!-- Links de acessibilidade -->
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="UNIVESP Polos - RSS"
+      href="/feed"
+    />
+    <link
+      rel="search"
+      type="application/opensearchdescription+xml"
+      title="Buscar Polos UNIVESP"
+      href="/opensearch.xml"
+    />
+  </head>
+  <body>
+    <a href="#conteudo-principal" class="visually-hidden-focusable"
+      >Pular para o conteúdo principal</a
+    >
+
+    <nav
+      class="navbar navbar-expand-lg navbar-dark bg-primary mb-4"
+      role="navigation"
+      aria-label="Menu principal"
+    >
+      <div class="container">
+        <a
+          class="navbar-brand"
+          href="{% url 'index' %}"
+          aria-label="UNIVESP Polos - Página inicial"
+        >
+          UNIVESP Polos
+        </a>
+
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Alternar menu de navegação"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'index' %}" aria-current="page"
+                >Início</a
+              >
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'polo_list' %}">Polos</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'busca_polo' %}">Buscar Polo</a>
+            </li>
+          </ul>
+          <ul class="navbar-nav">
+            {% if user.is_authenticated %}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="userDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="fas fa-user"></i>
+                <span class="d-none d-lg-inline ms-1"
+                  >{{ user.get_full_name|default:user.username }}</span
+                >
+              </a>
+              <ul
+                class="dropdown-menu dropdown-menu-end"
+                aria-labelledby="userDropdown"
+                style="z-index: 1050"
+              >
+                {% if user.is_staff %}
+                <li>
+                  <a class="dropdown-item" href="{% url 'polo_create' %}">
+                    <i class="fas fa-plus-circle me-2"></i>Cadastro de Novo Polo
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'admin:index' %}">
+                    <i class="fas fa-cogs me-2"></i>Gestão Site
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                {% endif %}
+                <li>
+                  <form
+                    method="post"
+                    action="{% url 'logout' %}"
+                    style="margin: 0"
+                  >
+                    {% csrf_token %}
+                    <button
+                      type="submit"
+                      class="dropdown-item"
+                      style="
+                        border: none;
+                        background: none;
+                        width: 100%;
+                        text-align: left;
+                      "
+                    >
+                      <i class="fas fa-sign-out-alt me-2"></i>Sair
+                    </button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+            {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'login' %}">
+                <i class="fas fa-sign-in-alt"></i>
+                <span class="d-none d-lg-inline ms-1">Login</span>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <main id="conteudo-principal" class="container" role="main">
+      {% if messages %}
+      <div class="mensagens" role="alert" aria-live="polite">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+          {{ message }}
+          <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+            aria-label="Fechar mensagem"
+          ></button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %} {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer mt-5 py-3 bg-light" role="contentinfo">
+      <div class="container text-center">
+        <span
+          >© {% now "Y" %} UNIVESP Polos. Todos os direitos reservados.</span
+        >
+        <!-- Link discreto para área administrativa -->
+        <small class="d-block mb-2">
+          <a href="{% url 'admin:index' %}" class="text-muted small">
+            <i class="fas fa-lock fa-xs"></i>
+            <span class="visually-hidden">Acessar área administrativa</span>
+          </a>
+        </small>
+        <nav class="mt-2" aria-label="Links de acessibilidade">
+          <ul class="list-inline">
+            <li class="list-inline-item">
+              <a href="#" class="link-secondary">Acessibilidade</a>
+            </li>
+            <li class="list-inline-item">
+              <a href="#" class="link-secondary">Mapa do Site</a>
+            </li>
+            <li class="list-inline-item">
+              <a href="#" class="link-secondary">Alto Contraste</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/accessibility.js' %}"></script>
+
+    <!-- Script para garantir funcionamento do dropdown -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Verificar se Bootstrap foi carregado
+        if (typeof bootstrap !== "undefined") {
+          console.log("Bootstrap carregado com sucesso");
+
+          // Inicializar dropdown manualmente se necessário
+          var dropdownElementList = [].slice.call(
+            document.querySelectorAll(".dropdown-toggle")
+          );
+          var dropdownList = dropdownElementList.map(function (
+            dropdownToggleEl
+          ) {
+            return new bootstrap.Dropdown(dropdownToggleEl);
+          });
+        } else {
+          console.error("Bootstrap não foi carregado");
+        }
+      });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+
+    <!-- Controles de acessibilidade flutuantes -->
+    <div
+      class="accessibility-controls fixed-bottom bg-light p-2"
+      aria-label="Controles de acessibilidade"
+      style="z-index: 1000"
+    >
+      <div class="container d-flex justify-content-end gap-2">
+        <button
+          onclick="window.adjustFontSize('decrease')"
+          class="btn btn-outline-primary"
+          aria-label="Diminuir texto"
+          type="button"
+        >
+          <i class="fas fa-minus" aria-hidden="true"></i>
+          <span class="ms-1">A-</span>
+        </button>
+        <button
+          onclick="window.adjustFontSize('reset')"
+          class="btn btn-outline-primary"
+          aria-label="Restaurar tamanho do texto"
+          type="button"
+        >
+          <i class="fas fa-text-size" aria-hidden="true"></i>
+          <span class="ms-1">A</span>
+        </button>
+        <button
+          onclick="window.adjustFontSize('increase')"
+          class="btn btn-outline-primary"
+          aria-label="Aumentar texto"
+          type="button"
+        >
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span class="ms-1">A+</span>
+        </button>
+        <button
+          onclick="toggleHighContrast()"
+          class="btn btn-outline-primary"
+          aria-label="Alternar alto contraste"
+        >
+          <i class="fas fa-adjust" aria-hidden="true"></i>
+          <span class="ms-1">Contraste</span>
+        </button>
+        <a
+          href="{% url 'acessibilidade' %}"
+          class="btn btn-outline-primary"
+          aria-label="Ajuda de acessibilidade"
+        >
+          <i class="fas fa-universal-access" aria-hidden="true"></i>
+          <span class="ms-1">Ajuda</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Painel de ajuda de atalhos -->
+    <div
+      id="keyboard-shortcuts"
+      class="modal fade"
+      tabindex="-1"
+      role="dialog"
+      aria-labelledby="keyboardShortcutsTitle"
+    >
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 id="keyboardShortcutsTitle" class="modal-title">
+              Atalhos de Teclado
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Fechar"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <ul class="list-unstyled">
+              <li>Alt + 1: Página inicial</li>
+              <li>Alt + 2: Buscar polos</li>
+              <li>Alt + 3: Lista de polos</li>
+              <li>Alt + 0: Acessibilidade</li>
+              <li>Alt + C: Alto contraste</li>
+              <li>Alt + H: Este painel de ajuda</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts de Acessibilidade -->
+    <script src="{% static 'js/accessibility.js' %}"></script>
+    <script>
+      // Garantir que a função adjustFontSize esteja disponível globalmente
+      window.adjustFontSize = function (action) {
+        const html = document.documentElement;
+        const currentScale =
+          parseFloat(
+            getComputedStyle(html).getPropertyValue("--font-size-scale")
+          ) || 1;
+
+        let newScale = currentScale;
+        switch (action) {
+          case "increase":
+            newScale = Math.min(currentScale + 0.1, 1.5);
+            break;
+          case "decrease":
+            newScale = Math.max(currentScale - 0.1, 0.8);
+            break;
+          case "reset":
+            newScale = 1;
+            break;
+        }
+
+        html.style.setProperty("--font-size-scale", newScale);
+        localStorage.setItem("fontScale", newScale);
+
+        const message =
+          action === "reset"
+            ? "Tamanho da fonte restaurado"
+            : `Tamanho da fonte ${
+                action === "increase" ? "aumentado" : "diminuído"
+              }`;
+
+        // Anunciar para leitores de tela
+        const announcement = document.createElement("div");
+        announcement.setAttribute("role", "alert");
+        announcement.setAttribute("aria-live", "polite");
+        announcement.classList.add("visually-hidden");
+        announcement.textContent = message;
+        document.body.appendChild(announcement);
+
+        setTimeout(() => {
+          document.body.removeChild(announcement);
+        }, 1000);
+      };
+
+      // Inicialização
+      document.addEventListener("DOMContentLoaded", function () {
+        // Restaurar preferências do usuário
+        const savedFontScale = localStorage.getItem("fontScale");
+        if (savedFontScale) {
+          document.documentElement.style.setProperty(
+            "--font-size-scale",
+            savedFontScale
+          );
+        }
+
+        enhanceMapAccessibility();
+        enhanceFormsAccessibility();
+
+        // Atalhos de teclado para fonte
+        document.addEventListener("keydown", function (e) {
+          if (e.ctrlKey) {
+            if (e.key === "+" || e.key === "=") {
+              e.preventDefault();
+              window.adjustFontSize("increase");
+            } else if (e.key === "-") {
+              e.preventDefault();
+              window.adjustFontSize("decrease");
+            } else if (e.key === "0") {
+              e.preventDefault();
+              window.adjustFontSize("reset");
+            }
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

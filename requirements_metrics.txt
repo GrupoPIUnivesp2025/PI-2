@@ -1,0 +1,10 @@
+# Dependências para métricas e monitoramento
+boto3>=1.26.0
+watchtower>=3.0.0
+celery>=5.3.0
+django-celery-beat>=2.5.0
+django-celery-results>=2.5.0
+
+# Dependências para performance
+newrelic>=8.8.0
+django-debug-toolbar>=4.2.0

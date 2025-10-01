@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Aurora MySQL Cluster para UNIVESP Polos"
+
+Parameters:
+  Environment:
+    Description: Ambiente (prod, staging)
+    Type: String
+    Default: prod
+    AllowedValues: [prod, staging]
+
+  ProjectName:
+    Description: Nome do projeto
+    Type: String
+    Default: univesp-polos
+
+  DatabaseName:
+    Description: Nome do banco de dados
+    Type: String
+    Default: univesp_polos
+
+  DatabaseMasterUsername:
+    Description: Nome do usuário master
+    Type: String
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: deve começar com letra e conter apenas letras e números
+
+  DatabaseMasterPassword:
+    Description: Senha do usuário master
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: "[a-zA-Z0-9]*"
+    ConstraintDescription: deve conter apenas letras e números
+
+Mappings:
+  EnvironmentMap:
+    prod:
+      InstanceClass: db.r6g.large
+      MultiAZ: true
+    staging:
+      InstanceClass: db.t4g.medium
+      MultiAZ: false
+
+Resources:
+  GrupoSubredesDB:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Grupo de subredes para o cluster Aurora
+      SubnetIds:
+        Fn::Split:
+          - ","
+          - Fn::ImportValue: !Sub ${ProjectName}-${Environment}-private-subnets
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-db-subnet-group
+
+  GrupoParametrosCluster:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Description: Grupo de parâmetros para o cluster Aurora
+      Family: aurora-mysql8.0
+      Parameters:
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+        time_zone: America/Sao_Paulo
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-cluster-param-group
+
+  GrupoParametrosInstancia:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: Grupo de parâmetros para as instâncias Aurora
+      Family: aurora-mysql8.0
+      Parameters:
+        max_connections: 1000
+        slow_query_log: 1
+        long_query_time: 2
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-instance-param-group
+
+  ClusterAurora:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-mysql
+      EngineVersion: 8.0.mysql_aurora.3.04.0
+      DatabaseName: !Ref DatabaseName
+      MasterUsername: !Ref DatabaseMasterUsername
+      MasterUserPassword: !Ref DatabaseMasterPassword
+      DBSubnetGroupName: !Ref GrupoSubredesDB
+      VpcSecurityGroupIds:
+        - Fn::ImportValue: !Sub ${ProjectName}-${Environment}-db-sg
+      DBClusterParameterGroupName: !Ref GrupoParametrosCluster
+      BackupRetentionPeriod: !If [IsProd, 30, 7]
+      PreferredBackupWindow: 02:00-03:00
+      PreferredMaintenanceWindow: sun:03:00-sun:04:00
+      StorageEncrypted: true
+      DeletionProtection: !If [IsProd, true, false]
+      EnableHttpEndpoint: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-aurora-cluster
+
+  InstanciaPrimaria:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref ClusterAurora
+      DBInstanceClass:
+        !FindInMap [EnvironmentMap, !Ref Environment, InstanceClass]
+      DBParameterGroupName: !Ref GrupoParametrosInstancia
+      PubliclyAccessible: false
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-aurora-primary
+
+  InstanciaReplica:
+    Type: AWS::RDS::DBInstance
+    Condition: IsProd
+    Properties:
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref ClusterAurora
+      DBInstanceClass:
+        !FindInMap [EnvironmentMap, !Ref Environment, InstanceClass]
+      DBParameterGroupName: !Ref GrupoParametrosInstancia
+      PubliclyAccessible: false
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-aurora-replica
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+Outputs:
+  EndpointCluster:
+    Description: Endpoint do cluster
+    Value: !GetAtt ClusterAurora.Endpoint.Address
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-db-endpoint
+
+  EndpointLeitura:
+    Description: Endpoint somente leitura
+    Value: !GetAtt ClusterAurora.ReadEndpoint.Address
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-db-reader-endpoint
+
+  NomeBancoDados:
+    Description: Nome do banco de dados
+    Value: !Ref DatabaseName
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-db-name
+
+  Porta:
+    Description: Porta do banco de dados
+    Value: !GetAtt ClusterAurora.Endpoint.Port
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-db-port

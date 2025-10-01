@@ -1,0 +1,24 @@
+[bandit]
+exclude_dirs = [
+    'tests',
+    'migrations',
+    '__pycache__',
+    'venv',
+    '.git',
+    '.github'
+]
+
+[bandit.assertions]
+# Configurações de severidade
+skips = ['B101']  # Ignora assert statements
+
+[bandit.blacklists]
+# Funções que podem ser perigosas
+subprocess = ['subprocess.*']
+exec = ['exec', 'eval']
+
+[bandit.extra_checks]
+# Verificações adicionais de segurança
+hardcoded_passwords = true
+weak_cryptography = true
+sql_injection = true

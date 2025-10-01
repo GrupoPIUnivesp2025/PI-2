@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}
+Buscar Polos Próximos - UNIVESP Polos
+{% endblock %}
+
+{% block extra_css %}
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<style>
+  #mapa {
+    height: 500px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <h1 class="mb-4">Buscar Polos Próximos</h1>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <form method="post" class="row g-3" role="search">
+          {% csrf_token %}
+          <div class="col-md-6">
+            <label for="cep" class="form-label">CEP</label>
+            <input
+              type="text"
+              class="form-control"
+              id="cep"
+              name="cep"
+              placeholder="00000-000"
+              required
+              pattern="\d{5}-?\d{3}"
+              aria-describedby="cepHelp"
+              inputmode="numeric"
+            />
+            <div id="cepHelp" class="form-text">
+              Digite o CEP no formato 00000-000
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label for="limite" class="form-label">Quantidade de Polos</label>
+            <input
+              type="number"
+              class="form-control"
+              id="limite"
+              name="limite"
+              value="5"
+              min="1"
+              max="20"
+              aria-describedby="limiteHelp"
+            />
+            <div id="limiteHelp" class="form-text">
+              Quantidade de polos mais próximos a serem exibidos (1-20)
+            </div>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-search" aria-hidden="true"></i>
+              <span>Buscar Polos Próximos</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if polos %}
+    <h2 class="mb-3">Resultados da Busca</h2>
+    <p class="mb-4">
+      <i class="fas fa-map-marker-alt"></i>
+      Endereço de referência: {{ endereco_busca }}
+    </p>
+
+    <div id="mapa" class="mb-4"></div>
+
+    <div class="list-group">
+      {% for item in polos %}
+      <a
+        href="{% url 'polo_detail' item.polo.pk %}"
+        class="list-group-item list-group-item-action"
+      >
+        <div class="d-flex w-100 justify-content-between">
+          <h5 class="mb-1">{{ item.polo.nome }}</h5>
+          <small>{{ item.distancia|floatformat:1 }} km</small>
+        </div>
+        <p class="mb-1">
+          {{ item.polo.endereco }}, {{ item.polo.numero }}{% if item.polo.complemento %} - {{ item.polo.complemento }}{% endif %}
+        </p>
+        <small>
+          {{ item.polo.bairro }}, {{ item.polo.cidade }}/{{ item.polo.estado }}
+        </small>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %} {% block extra_js %} {% if polos %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+      var mapa = L.map('mapa');
+      var markers = [];
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(mapa);
+
+      {% for item in polos %}
+          var marker = L.marker([{{ item.polo.latitude }}, {{ item.polo.longitude }}])
+              .addTo(mapa)
+              .bindPopup(
+                  '<strong>{{ item.polo.nome }}</strong><br>' +
+                  'Distância: {{ item.distancia|floatformat:1 }} km<br>' +
+                  '<a href="{% url 'polo_detail' item.polo.pk %}">Ver detalhes</a>'
+              );
+          markers.push(marker);
+      {% endfor %}
+
+      // Ajusta o zoom para mostrar todos os marcadores
+      var group = new L.featureGroup(markers);
+      mapa.fitBounds(group.getBounds().pad(0.1));
+  });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends 'base.html' %} {% load static %} {% block title %}Enviar Feedback -
+UNIVESP Polos{% endblock %} {% block content %}
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h1 class="h4 mb-0">Enviar Feedback</h1>
+        </div>
+        <div class="card-body">
+          <form
+            method="post"
+            action="{% url 'submit_feedback' %}"
+            class="needs-validation"
+            novalidate
+          >
+            {% csrf_token %}
+
+            <!-- Informações Pessoais -->
+            <div class="mb-4">
+              <h2 class="h5 mb-3">Suas Informações</h2>
+
+              <div class="mb-3">
+                <label for="nome" class="form-label">Nome *</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="nome"
+                  name="nome"
+                  required
+                />
+                <div class="invalid-feedback">Por favor, informe seu nome.</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="email" class="form-label">E-mail *</label>
+                <input
+                  type="email"
+                  class="form-control"
+                  id="email"
+                  name="email"
+                  required
+                />
+                <div class="invalid-feedback">
+                  Por favor, informe um e-mail válido.
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="telefone" class="form-label"
+                  >Telefone (opcional)</label
+                >
+                <input
+                  type="tel"
+                  class="form-control"
+                  id="telefone"
+                  name="telefone"
+                  pattern="\(\d{2}\) \d{4,5}-\d{4}"
+                />
+                <div class="form-text">Formato: (99) 99999-9999</div>
+              </div>
+            </div>
+
+            <!-- Feedback -->
+            <div class="mb-4">
+              <h2 class="h5 mb-3">Seu Feedback</h2>
+
+              <div class="mb-3">
+                <label for="tipo_feedback" class="form-label"
+                  >Tipo de Feedback *</label
+                >
+                <select
+                  class="form-select"
+                  id="tipo_feedback"
+                  name="tipo_feedback"
+                  required
+                >
+                  <option value="">Selecione...</option>
+                  <option value="sugestao">Sugestão</option>
+                  <option value="problema">Problema</option>
+                  <option value="elogio">Elogio</option>
+                  <option value="acessibilidade">
+                    Problema de Acessibilidade
+                  </option>
+                  <option value="outro">Outro</option>
+                </select>
+                <div class="invalid-feedback">
+                  Por favor, selecione o tipo de feedback.
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="mensagem" class="form-label">Mensagem *</label>
+                <textarea
+                  class="form-control"
+                  id="mensagem"
+                  name="mensagem"
+                  rows="5"
+                  required
+                ></textarea>
+                <div class="invalid-feedback">
+                  Por favor, escreva sua mensagem.
+                </div>
+              </div>
+            </div>
+
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-paper-plane me-2"></i>
+                Enviar Feedback
+              </button>
+              <a href="{% url 'index' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>
+                Voltar
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <h2>Buscar Polos por CEP</h2>
+      <form method="post" class="mt-4">
+        {% csrf_token %}
+        <div class="form-group">
+          <label for="cep">CEP:</label>
+          <input
+            type="text"
+            class="form-control"
+            id="cep"
+            name="cep"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Buscar</button>
+      </form>
+
+      {% if resultados %}
+      <div class="list-group mt-4">
+        {% for item in resultados %}
+        <a
+          href="{% url 'polo_detail' item.polo.pk %}"
+          class="list-group-item list-group-item-action"
+        >
+          <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1">{{ item.polo.nome }}</h5>
+            <small>{{ item.distancia|floatformat:1 }} km</small>
+          </div>
+          <p class="mb-1">
+            {{ item.polo.endereco }}, {{ item.polo.numero }} {% if
+            item.polo.complemento %} - {{ item.polo.complemento }} {% endif %}
+          </p>
+          <small>
+            {{ item.polo.bairro }}, {{ item.polo.cidade }}/{{ item.polo.estado
+            }}
+          </small>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Máscara para telefone
+    const telefoneInput = document.getElementById("telefone");
+    if (telefoneInput) {
+      telefoneInput.addEventListener("input", function (e) {
+        let value = e.target.value.replace(/\D/g, "");
+        if (value.length > 11) value = value.substr(0, 11);
+
+        if (value.length > 0) {
+          value = "(" + value;
+          if (value.length > 3) {
+            value = value.substr(0, 3) + ") " + value.substr(3);
+          }
+          if (value.length > 9) {
+            value = value.substr(0, 9) + "-" + value.substr(9);
+          }
+        }
+        e.target.value = value;
+      });
+    }
+
+    // Validação do formulário
+    const form = document.querySelector(".needs-validation");
+    form.addEventListener("submit", function (event) {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add("was-validated");
+    });
+  });
+</script>
+{% endblock %}

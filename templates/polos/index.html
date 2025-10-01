@@ -1,0 +1,38 @@
+{% extends 'base.html' %} {% block title %}UNIVESP Polos - Início{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8 text-center">
+    <h1 class="display-4 mb-4">Bem-vindo aos Polos UNIVESP</h1>
+    <p class="lead mb-4">
+      Encontre o polo UNIVESP mais próximo de você e descubra todas as
+      atividades disponíveis.
+    </p>
+    <div class="row mb-5">
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fas fa-search"></i> Buscar Polo
+            </h5>
+            <p class="card-text">Encontre polos próximos ao seu CEP</p>
+            <a href="{% url 'busca_polo' %}" class="btn btn-primary">Buscar</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">
+              <i class="fas fa-list"></i> Lista de Polos
+            </h5>
+            <p class="card-text">Veja todos os polos disponíveis</p>
+            <a href="{% url 'polo_list' %}" class="btn btn-primary"
+              >Ver Lista</a
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

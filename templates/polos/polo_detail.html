@@ -1,0 +1,141 @@
+{% extends 'base.html' %} {% block title %}{{ polo.nome }} - UNIVESP Polos{%
+endblock %} {% block extra_css %}
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<style>
+  #mapa {
+    height: 400px;
+  }
+</style>
+{% endblock %} {% block content %}
+<div class="row">
+  <!-- Menu de administração -->
+  {% if user.is_staff %}
+  <div class="col-12 mb-3">
+    <div class="d-flex justify-content-end">
+      <a
+        href="{% url 'polo_update' polo.pk %}"
+        class="btn btn-outline-primary me-2"
+      >
+        <i class="fas fa-edit"></i> Editar Polo
+      </a>
+      <a
+        href="{% url 'admin:polos_polo_change' polo.pk %}"
+        class="btn btn-outline-secondary"
+      >
+        <i class="fas fa-cog"></i> Admin
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="col-md-8">
+    <h1 class="mb-4">{{ polo.nome }}</h1>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Localização</h5>
+        <p class="mb-2">
+          <i class="fas fa-map-marker-alt"></i>
+          {{ polo.endereco }}, {{ polo.numero }} {% if polo.complemento %}- {{
+          polo.complemento }}{% endif %}
+        </p>
+        <p class="mb-2">{{ polo.bairro }}</p>
+        <p class="mb-2">
+          {{ polo.cidade }}/{{ polo.estado }} - CEP: {{ polo.cep }}
+        </p>
+
+        <div id="mapa" class="mt-3"></div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Contato</h5>
+        <p class="mb-2"><i class="fas fa-phone"></i> {{ polo.telefone }}</p>
+        <p><i class="fas fa-envelope"></i> {{ polo.email }}</p>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Cursos Oferecidos</h5>
+        <p class="card-text">{{ polo.cursos_oferecidos|linebreaks }}</p>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Horário de Atendimento</h5>
+        <p class="card-text">{{ polo.horario_atendimento|linebreaks }}</p>
+      </div>
+    </div>
+
+    {% if polo.atividades_extras %}
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Atividades Extras</h5>
+        <p class="card-text">{{ polo.atividades_extras|linebreaks }}</p>
+      </div>
+    </div>
+    {% endif %} {% if polo.atividades_esportivas %}
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Atividades Esportivas</h5>
+        <p class="card-text">{{ polo.atividades_esportivas|linebreaks }}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-md-4">
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Ações</h5>
+        <a
+          href="{% url 'polo_update' polo.pk %}"
+          class="btn btn-primary w-100 mb-2"
+        >
+          <i class="fas fa-edit"></i> Editar Polo
+        </a>
+        <a href="{% url 'polo_list' %}" class="btn btn-outline-secondary w-100">
+          <i class="fas fa-arrow-left"></i> Voltar para Lista
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Informações Adicionais</h5>
+        <p class="mb-2">
+          <small class="text-muted">
+            Cadastrado em: {{ polo.data_cadastro|date:"d/m/Y" }}
+          </small>
+        </p>
+        <p class="mb-0">
+          <small class="text-muted">
+            Última atualização: {{ polo.ultima_atualizacao|date:"d/m/Y H:i" }}
+          </small>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+      var mapa = L.map('mapa').setView([{{ polo.latitude }}, {{ polo.longitude }}], 15);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(mapa);
+
+      L.marker([{{ polo.latitude }}, {{ polo.longitude }}])
+          .addTo(mapa)
+          .bindPopup('{{ polo.nome }}');
+  });
+</script>
+{% endblock %}

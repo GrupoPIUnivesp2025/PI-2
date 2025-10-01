@@ -1,0 +1,118 @@
+/* Estilos para modo de alto contraste */
+.high-contrast {
+    /* Cores de texto e fundo */
+    --color-primary: #ffff00;
+    --color-text: #ffffff;
+    --color-background: #000000;
+    --color-link: #00ff00;
+    --color-border: #ffffff;
+    
+    background-color: var(--color-background) !important;
+    color: var(--color-text) !important;
+}
+
+.high-contrast * {
+    background-color: var(--color-background) !important;
+    color: var(--color-text) !important;
+    border-color: var(--color-border) !important;
+}
+
+.high-contrast a,
+.high-contrast .btn-primary {
+    color: var(--color-link) !important;
+    text-decoration: underline !important;
+}
+
+.high-contrast .card,
+.high-contrast .alert,
+.high-contrast .form-control {
+    border: 2px solid var(--color-border) !important;
+}
+
+.high-contrast .navbar {
+    border-bottom: 2px solid var(--color-border) !important;
+}
+
+.high-contrast .form-control:focus {
+    outline: 2px solid var(--color-primary) !important;
+    outline-offset: 2px;
+}
+
+.high-contrast .btn:focus,
+.high-contrast a:focus {
+    outline: 2px solid var(--color-primary) !important;
+    outline-offset: 4px;
+}
+
+/* Tamanhos de fonte ajustáveis */
+:root {
+    --font-size-base: 16px;
+    --font-size-scale: 1;
+}
+
+/* Aplicar escala de fonte a todos os elementos de texto */
+html {
+    font-size: calc(var(--font-size-base) * var(--font-size-scale));
+}
+
+body {
+    font-size: inherit;
+}
+
+/* Manter proporções para cabeçalhos */
+h1 { font-size: calc(2.5rem * var(--font-size-scale)); }
+h2 { font-size: calc(2rem * var(--font-size-scale)); }
+h3 { font-size: calc(1.75rem * var(--font-size-scale)); }
+h4 { font-size: calc(1.5rem * var(--font-size-scale)); }
+h5 { font-size: calc(1.25rem * var(--font-size-scale)); }
+h6 { font-size: calc(1rem * var(--font-size-scale)); }
+}
+
+body {
+    font-size: calc(var(--font-size-base) * var(--font-size-scale));
+}
+
+/* Espaçamento ajustável */
+body.increased-spacing * {
+    line-height: 1.8;
+    margin-bottom: 1.2em;
+}
+
+/* Elementos focáveis */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(13,110,253,.25);
+}
+
+/* Melhorias de legibilidade */
+.readable-text {
+    max-width: 70ch;
+    line-height: 1.6;
+}
+
+/* Skip Links */
+.skip-link {
+    background: #000;
+    color: #fff;
+    font-weight: 700;
+    left: 50%;
+    padding: 4px;
+    position: absolute;
+    transform: translateY(-100%);
+    transition: transform 0.3s;
+}
+
+.skip-link:focus {
+    transform: translateY(0%);
+}
+
+/* Melhorias para navegação por teclado */
+[tabindex]:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+}

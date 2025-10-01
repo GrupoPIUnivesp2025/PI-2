@@ -1,0 +1,289 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Infraestrutura de aplicação UNIVESP Polos - ECS, ALB, AutoScaling"
+
+Parameters:
+  Environment:
+    Description: Ambiente (prod, staging)
+    Type: String
+    Default: prod
+    AllowedValues: [prod, staging]
+
+  ProjectName:
+    Description: Nome do projeto
+    Type: String
+    Default: univesp-polos
+
+  DomainName:
+    Description: Nome do domínio
+    Type: String
+    Default: univesp-polos.com.br
+
+  CertificateArn:
+    Description: ARN do certificado SSL
+    Type: String
+
+  ContainerImage:
+    Description: URI da imagem do container
+    Type: String
+
+  ContainerPort:
+    Description: Porta do container
+    Type: Number
+    Default: 8000
+
+Mappings:
+  EnvironmentMap:
+    prod:
+      ContainerCpu: 1024
+      ContainerMemory: 2048
+      MinCapacity: 2
+      MaxCapacity: 4
+      TargetCpuUtilization: 70
+    staging:
+      ContainerCpu: 512
+      ContainerMemory: 1024
+      MinCapacity: 1
+      MaxCapacity: 2
+      TargetCpuUtilization: 80
+
+Resources:
+  # Cluster ECS
+  ClusterECS:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${ProjectName}-${Environment}-cluster
+      CapacityProviders: [FARGATE]
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-ecs-cluster
+
+  # Definição da Tarefa
+  DefinicaoTarefa:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${ProjectName}-${Environment}
+      Cpu: !FindInMap [EnvironmentMap, !Ref Environment, ContainerCpu]
+      Memory: !FindInMap [EnvironmentMap, !Ref Environment, ContainerMemory]
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: !Sub ${ProjectName}-${Environment}
+          Image: !Ref ContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Environment:
+            - Name: DJANGO_SETTINGS_MODULE
+              Value: univesp_polos.settings_prod
+            - Name: DB_HOST
+              Value: !ImportValue
+                Fn::Sub: ${ProjectName}-${Environment}-db-endpoint
+            - Name: DB_PORT
+              Value: !ImportValue
+                Fn::Sub: ${ProjectName}-${Environment}-db-port
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # IAM Roles
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ECSTaskS3Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${ProjectName}-${Environment}-static/*
+                  - !Sub arn:aws:s3:::${ProjectName}-${Environment}-static
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # Balanceador de Carga da Aplicação
+  BalanceadorCarga:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${ProjectName}-${Environment}-alb
+      Subnets:
+        Fn::Split:
+          - ","
+          - Fn::ImportValue: !Sub ${ProjectName}-${Environment}-public-subnets
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${ProjectName}-${Environment}-alb-sg
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-alb
+
+  ListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref BalanceadorCarga
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref GrupoDestino
+
+  ListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref BalanceadorCarga
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: 443
+            Host: "#{host}"
+            Path: "/#{path}"
+            Query: "#{query}"
+            StatusCode: HTTP_301
+
+  GrupoDestino:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectName}-${Environment}-tg
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Fn::ImportValue: !Sub ${ProjectName}-${Environment}-vpc-id
+      HealthCheckPath: /health/
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-${Environment}-tg
+
+  # Serviço ECS
+  ServicoECS:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerHTTPS
+    Properties:
+      ServiceName: !Sub ${ProjectName}-${Environment}-service
+      Cluster: !Ref ClusterECS
+      TaskDefinition: !Ref DefinicaoTarefa
+      DesiredCount: !FindInMap [EnvironmentMap, !Ref Environment, MinCapacity]
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            Fn::Split:
+              - ","
+              - Fn::ImportValue: !Sub ${ProjectName}-${Environment}-private-subnets
+          SecurityGroups:
+            - Fn::ImportValue: !Sub ${ProjectName}-${Environment}-web-sg
+      LoadBalancers:
+        - ContainerName: !Sub ${ProjectName}-${Environment}
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      EnableExecuteCommand: true
+
+  # Auto Escalonamento
+  AlvoEscalonamento:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !FindInMap [EnvironmentMap, !Ref Environment, MaxCapacity]
+      MinCapacity: !FindInMap [EnvironmentMap, !Ref Environment, MinCapacity]
+      ResourceId: !Join
+        - /
+        - - service
+          - !Ref ClusterECS
+          - !GetAtt ServicoECS.Name
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  PoliticaEscalonamento:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${ProjectName}-${Environment}-scaling-policy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AlvoEscalonamento
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue:
+          !FindInMap [EnvironmentMap, !Ref Environment, TargetCpuUtilization]
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 300
+
+  # CloudWatch Logs
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${ProjectName}-${Environment}
+      RetentionInDays: 30
+
+  # Route 53 Records
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Sub ${DomainName}.
+      Name: !If
+        - IsProd
+        - !Sub ${DomainName}.
+        - !Sub ${Environment}.${DomainName}.
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApplicationLoadBalancer.DNSName
+        HostedZoneId: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+Outputs:
+  URLServico:
+    Description: URL do serviço
+    Value: !Sub https://${DNSRecord}
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-service-url
+
+  DNSBalanceador:
+    Description: DNS do Balanceador de Carga
+    Value: !GetAtt BalanceadorCarga.DNSName
+    Export:
+      Name: !Sub ${ProjectName}-${Environment}-alb-dns
